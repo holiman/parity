@@ -14,20 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-//! JSON VM output.
+/// json_tracer.rs file is duplicated at evmbin/src/display/json.rs
+/// copied here to get around external crate and module problem (cyclic dependency)
 
-use ethcore::trace;
 use std::collections::HashMap;
+//use util::{U256, H256, ToPretty};
 use bigint::prelude::U256;
 use bigint::hash::H256;
 use bytes::ToPretty;
+use evm;
+use trace::VMTracer;
+use trace::trace::VMTrace;
 
-use display;
-use info as vm;
+/// Converts U256 into string.
+/// TODO Overcomes: https://github.com/paritytech/bigint/issues/13
+pub fn u256_as_str(v: &U256) -> String {
+	if v.is_zero() {
+		"\"0x0\"".into()
+	} else {
+		format!("\"{:x}\"", v)
+	}
+}
 
-/// JSON formatting informant.
-#[derive(Default)]
-pub struct Informant {
+/// JSON formatting VM tracer.
+#[derive(Default, Debug)]
+pub struct JsonVMTracer {
 	code: Vec<u8>,
 	depth: usize,
 	pc: usize,
@@ -39,13 +50,13 @@ pub struct Informant {
 	storage: HashMap<H256, H256>,
 }
 
-impl Informant {
+impl JsonVMTracer {
 	fn memory(&self) -> String {
 		format!("\"0x{}\"", self.memory.to_hex())
 	}
 
 	fn stack(&self) -> String {
-		let items = self.stack.iter().map(display::u256_as_str).collect::<Vec<_>>();
+		let items = self.stack.iter().map(u256_as_str).collect::<Vec<_>>();
 		format!("[{}]", items.join(","))
 	}
 
@@ -57,38 +68,7 @@ impl Informant {
 	}
 }
 
-impl vm::Informant for Informant {
-	fn before_test(&self, name: &str, action: &str) {
-		println!(
-			"{{\"test\":\"{name}\",\"action\":\"{action}\"}}",
-			name = name,
-			action = action,
-		);
-	}
-
-	fn set_gas(&mut self, gas: U256) {
-		self.gas_used = gas;
-	}
-
-	fn finish(result: Result<vm::Success, vm::Failure>) {
-		match result {
-			Ok(success) => println!(
-				"{{\"output\":\"0x{output}\",\"gasUsed\":\"{gas:x}\",\"time\":{time}}}",
-				output = success.output.to_hex(),
-				gas = success.gas_used,
-				time = display::as_micros(&success.time),
-			),
-			Err(failure) => println!(
-				"{{\"error\":\"{error}\",\"gasUsed\":\"{gas:x}\",\"time\":{time}}}",
-				error = failure.error,
-				gas = failure.gas_used,
-				time = display::as_micros(&failure.time),
-			),
-		}
-	}
-}
-
-impl trace::VMTracer for Informant {
+impl VMTracer for JsonVMTracer {
 	fn trace_next_instruction(&mut self, pc: usize, instruction: u8) -> bool {
 		self.pc = pc;
 		self.instruction = instruction;
@@ -99,35 +79,33 @@ impl trace::VMTracer for Informant {
 		self.pc = pc;
 		self.instruction = instruction;
 		self.gas_cost = gas_cost;
-	}
-
-	fn trace_executed(&mut self, gas_used: U256, stack_push: &[U256], mem_diff: Option<(usize, &[u8])>, store_diff: Option<(U256, U256)>) {
-		let info = ::evm::INSTRUCTIONS[self.instruction as usize];
-
+		let info = evm::INSTRUCTIONS[self.instruction as usize];
+		
 		println!(
-			"{{\"pc\":{pc},\"op\":{op},\"opName\":\"{name}\",\"gas\":{gas},\"gasCost\":{gas_cost},\"memory\":{memory},\"stack\":{stack},\"storage\":{storage},\"depth\":{depth}}}",
+			"{{\"pc\":{pc},\"op\":{op},\"opName\":\"{name}\",\"gas\":{gas},\"memory\":{memory},\"stack\":{stack},\"storage\":{storage},\"depth\":{depth}}}",
 			pc = self.pc,
 			op = self.instruction,
 			name = info.name,
-			gas = display::u256_as_str(&(gas_used + self.gas_cost)),
-			gas_cost = display::u256_as_str(&self.gas_cost),
+			gas = u256_as_str(&(gas_used)),
 			memory = self.memory(),
 			stack = self.stack(),
 			storage = self.storage(),
 			depth = self.depth,
 		);
+	}
 
+	fn trace_executed(&mut self, gas_used: U256, stack_push: &[U256], mem_diff: Option<(usize, &[u8])>, store_diff: Option<(U256, U256)>) {
+		let info = evm::INSTRUCTIONS[self.instruction as usize];
 		self.gas_used = gas_used;
-
 		let len = self.stack.len();
-		self.stack.truncate(if len > info.args { len - info.args } else { 0 });
+		self.stack.truncate(len - info.args);
 		self.stack.extend_from_slice(stack_push);
 
 		if let Some((pos, data)) = mem_diff {
 			if self.memory.len() < (pos + data.len()) {
-				self.memory.resize(pos + data.len(), 0);
+				self.memory.resize((pos + data.len()), 0);
 			}
-			self.memory[pos..pos + data.len()].copy_from_slice(data);
+			self.memory[pos..(pos + data.len())].copy_from_slice(data);
 		}
 
 		if let Some((pos, val)) = store_diff {
@@ -136,7 +114,7 @@ impl trace::VMTracer for Informant {
 	}
 
 	fn prepare_subtrace(&self, code: &[u8]) -> Self where Self: Sized {
-		let mut vm = Informant::default();
+		let mut vm = JsonVMTracer::default();
 		vm.depth = self.depth + 1;
 		vm.code = code.to_vec();
 		vm.gas_used = self.gas_used;
@@ -148,9 +126,9 @@ impl trace::VMTracer for Informant {
 			// print last line with final state:
 			sub.gas_cost = 0.into();
 			let gas_used = sub.gas_used;
-			trace::VMTracer::trace_executed(&mut sub, gas_used, &[], None, None);
+			VMTracer::trace_executed(&mut sub, gas_used, &[], None, None);
 		}
 	}
 
-	fn drain(self) -> Option<trace::VMTrace> { None }
+	fn drain(self) -> Option<VMTrace> { None }
 }

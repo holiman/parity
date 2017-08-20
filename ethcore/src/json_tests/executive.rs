@@ -17,6 +17,7 @@
 use std::sync::Arc;
 use super::test_common::*;
 use state::{Backend as StateBackend, State, Substate};
+use state_db::StateDB;
 use executive::*;
 use evm::{VMType, Finalize};
 use vm::{
@@ -54,6 +55,24 @@ impl From<ethjson::vm::Call> for CallCreate {
 		}
 	}
 }
+
+/*
+// attempted to export json_tests module
+fn new_db() -> Arc<KeyValueDB> {
+	Arc::new(::util::kvdb::in_memory(::db::NUM_COLUMNS.unwrap_or(0)))
+}
+
+pub fn get_temp_state() -> State<::state_db::StateDB> {
+	let journal_db = get_temp_state_db();
+	State::new(journal_db, U256::from(0), Default::default())
+}
+
+pub fn get_temp_state_db() -> StateDB {
+	let db = new_db();
+	let journal_db = journaldb::new(db, journaldb::Algorithm::EarlyMerge, ::db::COL_STATE);
+	StateDB::new(journal_db, 5 * 1024 * 1024)
+}
+*/
 
 /// Tiny wrapper around executive externalities.
 /// Stores callcreates.

@@ -35,6 +35,7 @@ extern crate panic_hook;
 use std::sync::Arc;
 use std::{fmt, fs};
 use std::path::PathBuf;
+use std::io::Read;
 use docopt::Docopt;
 use rustc_hex::FromHex;
 use bigint::prelude::U256;
@@ -45,6 +46,11 @@ use vm::{ActionParams, CallType};
 
 mod info;
 mod display;
+mod statetest;
+
+// TODO: use ethcore::json_tests for state test runner, instead of copying code to evmbin/src/statetest.rs
+//use ethcore::json_tests::state;
+//use ethcore::json_tests:state::json_chain_test;
 
 use info::Informant;
 
@@ -73,6 +79,7 @@ State test options:
 General options:
     --json             Display verbose results in JSON.
     --chain CHAIN      Chain spec file path.
+    --statetest TEST   State test file path.
     -h, --help         Display this message and exit.
 "#;
 
@@ -144,27 +151,39 @@ fn run_call<T: Informant>(args: Args, mut informant: T) {
 	let gas = arg(args.gas(), "--gas");
 	let gas_price = arg(args.gas_price(), "--gas-price");
 	let data = arg(args.data(), "--input");
+	let state_test = arg(args.state_test(), "--statetest");
 
-	if code.is_none() && to == Address::default() {
+	if code.is_none() && to == Address::default() && state_test.is_none() {
 		die("Either --code or --to is required.");
 	}
 
-	let mut params = ActionParams::default();
-	params.call_type = if code.is_none() { CallType::Call } else { CallType::None };
-	params.code_address = to;
-	params.address = to;
-	params.sender = from;
-	params.origin = from;
-	params.gas = gas;
-	params.gas_price = gas_price;
-	params.code = code.map(Arc::new);
-	params.data = data;
+	if state_test.is_none() {
+		let mut params = ActionParams::default();
+		params.call_type = if code.is_none() { CallType::Call } else { CallType::None };
+		params.code_address = to;
+		params.address = to;
+		params.sender = from;
+		params.origin = from;
+		params.gas = gas;
+		params.gas_price = gas_price;
+		params.code = code.map(Arc::new);
+		params.data = data;
 
-	informant.set_gas(gas);
-	let result = info::run(&spec, gas, None, |mut client| {
-		client.call(params, &mut informant).map(|r| (r.gas_left, r.return_data.to_vec()))
-	});
-	T::finish(result);
+		informant.set_gas(gas);
+
+		let result = info::run(&spec, gas, None, |mut client| {
+			client.call(params, &mut informant).map(|r| (r.gas_left, r.return_data.to_vec()))
+		});
+		T::finish(result);
+	} else {
+		// TODO: use state test runner from ethcore::json_tests
+		// let results = state::json_chain_test(state_test.unwrap().as_bytes());
+
+		// statetest::run_json_test is copy/pasted from ethcore::json_tests
+		let results = statetest::run_json_test(state_test.unwrap());
+		// todo: print results?
+	}
+
 }
 
 #[derive(Debug, Deserialize)]
@@ -180,6 +199,7 @@ struct Args {
 	flag_gas_price: Option<String>,
 	flag_input: Option<String>,
 	flag_chain: Option<String>,
+	flag_statetest: Option<String>,
 	flag_json: bool,
 }
 
@@ -237,6 +257,19 @@ impl Args {
 			},
 		})
 	}
+	
+	pub fn state_test(&self) -> Result<Option<String>, String> {
+		match self.flag_statetest {
+			Some(ref filename) =>  {
+				let mut data = String::new();
+				let mut file = fs::File::open(filename).map_err(|e| format!("{}", e))?;
+				file.read_to_string(&mut data);
+				Ok(Some(data))
+			},
+			None => Ok(None),
+		}
+	}
+
 }
 
 fn arg<T>(v: Result<T, String>, param: &str) -> T {

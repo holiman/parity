@@ -210,12 +210,14 @@ impl<'a> EvmTestClient<'a> {
 		}
 
 		// Apply transaction
-		let tracer = trace::NoopTracer;
+		//let tracer = trace::NoopTracer;
+		let tracer = trace::ExecutiveTracer::default();
 		let result = self.state.apply_with_tracing(&env_info, self.spec.engine.machine(), &transaction, tracer, vm_tracer);
 
 		match result {
 			Ok(result) => {
 				self.state.commit().ok();
+				println!("printing state dump: {:?}", self.state);
 				TransactResult::Ok {
 					state_root: *self.state.root(),
 					gas_left: initial_gas - result.receipt.gas_used,

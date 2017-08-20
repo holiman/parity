@@ -183,6 +183,8 @@ mod tests;
 #[cfg(test)]
 #[cfg(feature="json-tests")]
 mod json_tests;
+// TODO: export json_tests for evmbin state test runner
+// pub mod json_tests;
 
 pub use types::*;
 pub use executive::contract_address;

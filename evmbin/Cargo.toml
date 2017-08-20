@@ -20,6 +20,7 @@ ethcore-bigint = { path = "../util/bigint" }
 ethcore-bytes = { path = "../util/bytes" }
 evm = { path = "../ethcore/evm" }
 vm = { path = "../ethcore/vm" }
+ethcore-logger = { path = "../logger" }
 panic_hook = { path = "../panic_hook" }
 
 [features]

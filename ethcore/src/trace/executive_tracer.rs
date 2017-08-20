@@ -203,7 +203,7 @@ impl ExecutiveVMTracer {
 impl VMTracer for ExecutiveVMTracer {
 	fn trace_next_instruction(&mut self, _pc: usize, _instruction: u8) -> bool { true }
 
-	fn trace_prepare_execute(&mut self, pc: usize, instruction: u8, gas_cost: U256) {
+	fn trace_prepare_execute(&mut self, pc: usize, instruction: u8, gas_cost: U256, gas_used: U256) {
 		self.data.operations.push(VMOperation {
 			pc: pc,
 			instruction: instruction,

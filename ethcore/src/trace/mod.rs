@@ -22,10 +22,12 @@ mod db;
 mod executive_tracer;
 mod import;
 mod noop_tracer;
+mod json_tracer;
 mod types;
 
 pub use self::config::Config;
 pub use self::db::TraceDB;
+pub use self::json_tracer::JsonVMTracer;
 pub use self::noop_tracer::{NoopTracer, NoopVMTracer};
 pub use self::executive_tracer::{ExecutiveTracer, ExecutiveVMTracer};
 pub use self::import::ImportRequest;
@@ -103,7 +105,7 @@ pub trait VMTracer: Send {
 	fn trace_next_instruction(&mut self, _pc: usize, _instruction: u8) -> bool { false }
 
 	/// Trace the preparation to execute a single valid instruction.
-	fn trace_prepare_execute(&mut self, _pc: usize, _instruction: u8, _gas_cost: U256) {}
+	fn trace_prepare_execute(&mut self, _pc: usize, _instruction: u8, _gas_cost: U256, _gas_used: U256) {}
 
 	/// Trace the finalised execution of a single valid instruction.
 	fn trace_executed(&mut self, _gas_used: U256, _stack_push: &[U256], _mem_diff: Option<(usize, &[u8])>, _store_diff: Option<(U256, U256)>) {}
