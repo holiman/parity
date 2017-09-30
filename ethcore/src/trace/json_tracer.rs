@@ -81,6 +81,7 @@ impl VMTracer for JsonVMTracer {
 		self.gas_cost = gas_cost;
 		let info = evm::INSTRUCTIONS[self.instruction as usize];
 		
+		/*
 		println!(
 			"{{\"pc\":{pc},\"op\":{op},\"opName\":\"{name}\",\"gas\":{gas},\"memory\":{memory},\"stack\":{stack},\"storage\":{storage},\"depth\":{depth}}}",
 			pc = self.pc,
@@ -88,6 +89,19 @@ impl VMTracer for JsonVMTracer {
 			name = info.name,
 			gas = u256_as_str(&(gas_used)),
 			memory = self.memory(),
+			stack = self.stack(),
+			storage = self.storage(),
+			depth = self.depth,
+		);
+		*/
+		
+		println!(
+			"{{\"pc\":{pc},\"op\":{op},\"opName\":\"{name}\",\"gas\":{gas},\"stack\":{stack},\"storage\":{storage},\"depth\":{depth}}}",
+			pc = self.pc,
+			op = self.instruction,
+			name = info.name,
+			gas = u256_as_str(&(gas_used)),
+			// memory = self.memory(),
 			stack = self.stack(),
 			storage = self.storage(),
 			depth = self.depth,
